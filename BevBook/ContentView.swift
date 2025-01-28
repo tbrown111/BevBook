@@ -203,13 +203,12 @@ struct HomeView: View {
 struct StatsView: View {
     @State private var totalAmount: Double = 0.0 // To store total liquid consumed
     @State private var isLoading: Bool = true // To show loading indicator while fetching data
-
+    @State private var favDrink: String = ""
     var body: some View {
         VStack {
             Text("Stats")
                 .font(.system(size: 32, weight: .bold, design: .default))
                 .padding(.top, 50)
-
             // Display total amount or a loading message
             if isLoading {
                 Text("Loading stats...")
@@ -219,8 +218,11 @@ struct StatsView: View {
                 Text("Total Ounces of Alcohol Consumed: \(totalAmount, specifier: "%.1f") oz")
                     .font(.title)
                     .padding()
+                
+                Text("Favorite Drink: \(favDrink)")
+                    .font(.title)
+                    .padding()
             }
-
             Spacer()
         }
         .onAppear {
@@ -236,7 +238,8 @@ struct StatsView: View {
         }
         
         let db = Firestore.firestore()
-
+        var drinkCounts: [String: Int] = [:]
+        
         // Fetch drinks for the logged-in user from Firestore
         db.collection("drinks")
             .whereField("userId", isEqualTo: userId) // Filter by the current user's ID
@@ -255,6 +258,29 @@ struct StatsView: View {
                 } ?? 0.0
                 
                 isLoading = false
+            }
+        db.collection("drinks")
+            .whereField("userId", isEqualTo: userId)
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    print("Error getting documents: \(error.localizedDescription)")
+                    favDrink = "Error fetching data"
+                    return
+                }
+                
+                // Count occurrences of each drink name
+                snapshot?.documents.forEach { document in
+                    if let type = document["type"] as? String {
+                        drinkCounts[type, default: 0] += 1
+                    }
+                }
+                
+                // Find the drink with the maximum count
+                if let mostPopular = drinkCounts.max(by: { $0.value < $1.value })?.key {
+                    favDrink = mostPopular
+                } else {
+                    favDrink = "No drinks logged yet"
+                }
             }
     }
 }
